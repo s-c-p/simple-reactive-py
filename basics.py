@@ -10,6 +10,8 @@ queue.know_that(sender, [func_list])
 	# # ans.subscribe(speaker)	# does this go into setup.py
 	# # ans.set(reaction, stimulant)	# one stimulant can have many reactions
 
+http://reactivex.io/
+http://bit.ly/2vn83wa
 
 
 
