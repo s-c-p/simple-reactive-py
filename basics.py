@@ -2,6 +2,11 @@ queue.push(message)
 	# implicitly knows about sender
 	# assigns a message_id
 	# raises some alert, so everyone becomes concious
+	# now the functions which care about message m from sender s
+	# do their thing and acknowledge queue about success or failure
+	# 	failure is logged unless explicitly programmed to halt (using know_that)
+	# 	all successes are checked against know_that's own list of reactors
+	# 	any unexpected success raises programmingErr
 	# # ans.stimulus()
 queue.pop(message_id)
 	# when all subscribers have reported success
@@ -10,9 +15,10 @@ queue.know_that(sender, [func_list])
 	# # ans.subscribe(speaker)	# does this go into setup.py
 	# # ans.set(reaction, stimulant)	# one stimulant can have many reactions
 
+async await
+
 http://reactivex.io/
 http://bit.ly/2vn83wa
-
 
 
 
