@@ -22,19 +22,34 @@ import inspect
 job_list = list()
 physics_rules = {
 	"sender_name_1": [
-		("full_func_path_1", "expected value on success", "log OR raise", "async?"),
-		("full_func_path_2", "expected value on success", "log OR raise", "async?"),
-		("full_func_path_3", "expected value on success", "log OR raise", "async?")
+		("func_path_1", "func_name_1", "expected value on success", "log OR raise", "async?"),
+		("func_path_2", "func_name_2", "expected value on success", "log OR raise", "async?"),
+		("func_path_3", "func_name_3", "expected value on success", "log OR raise", "async?")
 	],
 	"sender_name_2": [
-		("full_func_path_1", "expected value on success", "log OR raise", "async?"),
-		("full_func_path_2", "expected value on success", "log OR raise", "async?")
+		("func_path_1", "func_name_1", "expected value on success", "log OR raise", "async?"),
+		("func_path_2", "func_name_2", "expected value on success", "log OR raise", "async?")
 	]
 }
 
 def _defer(params, reactorDetails):
-	func_name = reactorDetails["full_func_path"]
-	args = inspect.getargspec(func_name)
+	func_path = reactorDetails.func_path
+	func_name = reactorDetails.func_name
+	mod_path = importlib.import_module(func_path)
+	ismodule = assert inspect.ismodule(mod_path)
+	if not ismodule:	raise RuntimeError(f"ProgrammingError>>> {func_path} is not a module when imported")
+	func = getattr(mod_path, func_name)
+	# >>> def f(x, y=1, z=2, *args, **kwargs): pass
+	call_specs = inspect.getfullargspec(func)
+
+
+
+	FullArgSpec(args=['x', 'y', 'z'], varargs='args', varkw='kwargs', defaults=(1, 2), kwonlyargs=[], kwonlydefaults=None, annotations={})
+
+
+
+	args = call_specs.args
+	assert [anArg in params.keys() for anArg in args]
 	# firstly I can't really get argspec of things i haven't imported (PRACTICAL PROBLEM)
 	# even if reactorDetails were to contain a field mentioning all args, namedargs, defaultargs, etc. etc.
 	# how would i call functions without importing
