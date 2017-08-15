@@ -167,9 +167,18 @@ def defer(all_params: dict, reactors: List[PhysicsRule]) -> str:
 	https://medium.freecodecamp.org/a-guide-to-asynchronous-programming-in-python-with-asyncio-232e2afa44f6
 	https://github.com/ask/flask-celery/
 	"""
-	for aReactor in reactors:
-		_defer(all_params, aReactor)
-	return "success"
+    total_length = int()
+    all_all_args = list()
+    for aReactor in reactors:
+        req_args = _defer(all_params, aReactor)
+        all_all_args.append(req_args)
+    if len(set(all_all_args)) == total_length:
+        # i.e. no duplicate arg names i.e. no 
+        # name colliosion of args of different functions
+        pass
+    else:
+        raise ConfigError("1+ functions share a common argument name, name colliosion, can't work")
+    return "success"
 
 def push(message: dict, sender: str) -> str:
 	"""
