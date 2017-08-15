@@ -6,7 +6,7 @@ import json
 import inspect
 import importlib
 from contextlib import contextmanager
-from typing import  Tuple, Optional, List, NewType
+from typing import  Tuple, Optional, List, NewType, Generator
 
 
 JOB_LIST = "jobs.list"
@@ -14,11 +14,12 @@ PHYSICS_RULES = "physics.json"
 
 
 
-PathLike = NewType('PathLike', str)
+# PathLike = NewType('PathLike', str)
+# creating a lot of beyond-my-understanding problems with mypy
 
 class ConfigError(Exception):
 	""" shows error in configuration file """
-	def __init__(self, msg: str):
+	def __init__(self, msg: str) -> None:
 		self.msg = msg
 		return
 
@@ -86,7 +87,7 @@ class RuleDecoder(json.JSONDecoder):
 
 
 @contextmanager
-def documentDB(file_name: PathLike):
+def documentDB(file_name: str) -> Generator:
 	if not os.path.isfile(file_name):
 		# with open(file_name, mode='wt') as _: pass
 		raise ConfigError(f"configuration file '{file_name}' not found")
@@ -95,9 +96,9 @@ def documentDB(file_name: PathLike):
 	yield con
 	with open(file_name, mode='wt') as fp:
 		json.dump(con, fp, cls=RuleEncoder)
-	return
+	return "success"
 
-def _defer(all_params, reactorDetails):
+def _defer(all_params: dict, reactorDetails: PhysicsRule) -> list:
 	# PART-1: create a copy (instantiate) of the function
 	func_path = reactorDetails.func_path
 	func_name = reactorDetails.func_name
@@ -157,9 +158,9 @@ def _defer(all_params, reactorDetails):
 		errMsg = f"{func.__name__} didn't return expected value"
 		if reactorDetails.onerror == "ignore":  print(errMsg)
 		else:                       			raise RuntimeError(errMsg)
-	return
+	return req_args
 
-def defer(all_params, reactors):
+def defer(all_params: dict, reactors: List[PhysicsRule]) -> str:
 	""" async await
 	https://hackernoon.com/asynchronous-python-45df84b82434
 	https://gist.github.com/nhumrich/b53cc1e0482411e4b53d74bd12a485c1#file-gevent_example-py
@@ -168,9 +169,9 @@ def defer(all_params, reactors):
 	"""
 	for aReactor in reactors:
 		_defer(all_params, aReactor)
-	return
+	return "success"
 
-def push(message, sender):
+def push(message: dict, sender: str) -> str:
 	"""
 	assigns a message_id
 	raises some alert, so everyone becomes concious
@@ -190,7 +191,7 @@ def push(message, sender):
 	with documentDB(PHYSICS_RULES) as physics_rules:
 		reactor_list = physics_rules[sender]
 	defer(message, reactor_list)
-	return
+	return "success"
 
 def jobs_tracker():
 	""" has the responsibility of calling pop()
@@ -199,11 +200,11 @@ def jobs_tracker():
 	"""
 	return NotImplemented
 
-def pop(message_id):
+def pop(message_id: str):
 	""" when all subscribers have reported success """
 	return NotImplemented
 
-def define_rules(sender, reactor_list):
+def define_rules(sender: str, reactor_list: List[PhysicsRule]) -> str:
 	""" binds reactions to a sender and stores that data in a json file
 	ideal scenario-- QUEUE.subscribe(speaker)  # called by anyone anywhere
 	current scenario-- ANS.set(reaction, stimulant)	# done only at setup time
@@ -225,4 +226,4 @@ def define_rules(sender, reactor_list):
 		# just_add_water = functools.partial(cautious_writer, physics_rules,\
 		# sender)
 		# list(  map(just_add_water, reactor_list)  )
-	return
+	return "success"
