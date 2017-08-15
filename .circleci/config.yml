@@ -1,0 +1,12 @@
+version: 2
+jobs:
+        build:
+                docker:
+                        -image: circleci/python:3.6.1
+                # working_directory: ~/repo
+                steps:
+                        - run:
+                                name: run test
+                                command: python test.py
+                                   
+

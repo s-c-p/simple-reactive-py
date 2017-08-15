@@ -177,7 +177,8 @@ def defer(all_params: dict, reactors: List[PhysicsRule]) -> str:
         # name colliosion of args of different functions
         pass
     else:
-        raise ConfigError("1+ functions share a common argument name, name colliosion, can't work")
+        raise ConfigError("1+ functions share a common argument name, \
+        name colliosion, can't work")
     return "success"
 
 def push(message: dict, sender: str) -> str:
@@ -190,6 +191,7 @@ def push(message: dict, sender: str) -> str:
 	  all successes are checked against know_that's own list of reactors
 	  any unexpected success raises programmingErr
 	# ANS.stimulus()
+	NOTE: take a look at bit.ly/2vBgw0F to understand why 2 lines end with ';'
 	"""
 	message_id = str(uuid.uuid4())
 	jobs: List[dict];
