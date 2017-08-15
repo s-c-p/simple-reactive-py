@@ -4,6 +4,7 @@ import os
 import uuid
 import json
 import inspect
+import importlib
 from contextlib import contextmanager
 from typing import  Tuple, Optional, List, NewType
 
@@ -148,17 +149,17 @@ def _defer(all_params, reactorDetails):
 	try:
 		runtimeAns = eval("{}({})".format("func", the_args))
 	except Exception as e:
-		if reactorDetails.onerror:  pass
-		else:                       raise e
+		if reactorDetails.onerror == "ignore":  pass
+		else:                       			raise e
 	if runtimeAns == reactorDetails.expectedAns:
 		pass # inform pop
 	else:
 		errMsg = f"{func.__name__} didn't return expected value"
-		if reactorDetails.onerror:  print(errMsg)
-		else:                       raise RuntimeError(errMsg)
+		if reactorDetails.onerror == "ignore":  print(errMsg)
+		else:                       			raise RuntimeError(errMsg)
 	return
 
-def defer(params, reactors):
+def defer(all_params, reactors):
 	""" async await
 	https://hackernoon.com/asynchronous-python-45df84b82434
 	https://gist.github.com/nhumrich/b53cc1e0482411e4b53d74bd12a485c1#file-gevent_example-py
@@ -166,7 +167,7 @@ def defer(params, reactors):
 	https://github.com/ask/flask-celery/
 	"""
 	for aReactor in reactors:
-		_defer(message, aReactor)
+		_defer(all_params, aReactor)
 	return
 
 def push(message, sender):
@@ -181,9 +182,11 @@ def push(message, sender):
 	# ANS.stimulus()
 	"""
 	message_id = str(uuid.uuid4())
+	jobs: List[dict];
 	with documentDB(JOB_LIST) as jobs:
 		jobs.append({message_id: message})
-	wake_everyone() # HAHA
+	# wake_everyone() # HAHA
+	physics_rules: dict;
 	with documentDB(PHYSICS_RULES) as physics_rules:
 		reactor_list = physics_rules[sender]
 	defer(message, reactor_list)
@@ -215,6 +218,7 @@ def define_rules(sender, reactor_list):
 		finally:
 			dicn[key].append(list_item)
 		return
+	physics_rules: dict;
 	with documentDB(PHYSICS_RULES) as physics_rules:
 		for reactorDetails in reactor_list:
 			cautious_writer(physics_rules, sender, reactorDetails)
