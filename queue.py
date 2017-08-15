@@ -1,9 +1,11 @@
+# TODO: type annotations
+
 import os
 import uuid
 import json
 import inspect
-import contextlib
-
+from contextlib import contextmanager
+from typing import  Tuple, Optional, List, NewType
 
 
 JOB_LIST = "jobs.list"
@@ -11,31 +13,36 @@ PHYSICS_RULES = "physics.json"
 
 
 
+PathLike = NewType('PathLike', str)
+
 class ConfigError(Exception):
 	""" shows error in configuration file """
-	def __init__(self, msg):
+	def __init__(self, msg: str):
 		self.msg = msg
 		return
 
 class PhysicsRule():
-	""" struct for storing a rule i.e. details of a reactor """
-	def __init__(self, func_path, func_name, expectedAns, onerror):
+	""" struct for storing a rule i.e. details of a reactor
+	TODO: in future add support for marking this reactor info as async
+	capable (?bool flag)
+	"""
+	def __init__(self, func_path: str, func_name: str, expectedAns: object,
+			onerror: str) -> None:
 		self.func_path = func_path
 		self.func_name = func_name
 		self.expectedAns = expectedAns
 		self.onerror = onerror
-		return
 
 	@staticmethod
-	def _make(argTuple):
+	def _make(argTuple: Tuple[str, str, object, str]) -> 'PhysicsRule':
 		a, b, c, d = argTuple
 		return PhysicsRule(a, b, c, d)
 
 class RuleEncoder(json.JSONEncoder):
-	""" add-on to json to help properly encode (dump py obj to file) a \
-	physics rule
+	""" add-on to the standard json library to help properly encode (i.e. \
+	dump py obj to file) a physics rule
 	"""
-	def default(self, theRule):
+	def default(self, theRule: PhysicsRule) -> dict:
 		if isinstance(theRule, PhysicsRule):
 			return \
 			{ "func_path": theRule.func_path
@@ -46,11 +53,16 @@ class RuleEncoder(json.JSONEncoder):
 		return super(RuleEncoder, self).default(theRule)
 
 class RuleDecoder(json.JSONDecoder):
-	""" 'Lambda' para on bit.ly/2vCwlSQ """
+	""" add-on to the standard json library to help properly decode (i.e. \
+	make python object from dict (which is in turn (internally) derived \
+	from json.load)) a physics rule
+	SEE: 'Lambda' para on bit.ly/2vCwlSQ
+	"""
 	def __init__(self):
 		# json.JSONDecoder.__init__(self, object_hook=self.dict2obj)
 		super(RuleDecoder, self).__init__(object_hook=self.dict2obj)
-	def dict2obj(self, dicn):
+
+	def dict2obj(self, dicn: dict) -> PhysicsRule:
 		keys = dicn.keys()
 		if len(keys) == len(self.NECESSARY_TRAITS) and \
 			all(  [trait in keys for trait in self.NECESSARY_TRAITS]  ):
@@ -64,42 +76,32 @@ class RuleDecoder(json.JSONDecoder):
 			tup = w, x, y, z
 			return PhysicsRule._make(tup)
 		else:
-			raise ConfigError("")
+			# the case when file is just created and dicn is  == {}
+			return dicn
+			# raise ConfigError("")
+
 	NECESSARY_TRAITS = ["func_path", "func_name", "expectedAns", "onerror"]
 
-@contextlib.contextmanager
-def documentDB(file_name):
+
+
+@contextmanager
+def documentDB(file_name: PathLike):
 	if not os.path.isfile(file_name):
 		# with open(file_name, mode='wt') as _: pass
 		raise ConfigError(f"configuration file '{file_name}' not found")
 	with open(file_name, mode='rt') as fp:
-		con = json.load(fp)
+		con = json.load(fp, cls=RuleDecoder)
 	yield con
 	with open(file_name, mode='wt') as fp:
 		json.dump(con, fp, cls=RuleEncoder)
 	return
-
-# sample
-job_list = list()
-physics_rules = {
-	"sender_name_1": [
-		("func_path_1", "func_name_1", "expected value on success", "log OR raise", "async?"),
-		("func_path_2", "func_name_2", "expected value on success", "log OR raise", "async?"),
-		("func_path_3", "func_name_3", "expected value on success", "log OR raise", "async?")
-	],
-	"sender_name_2": [
-		("func_path_1", "func_name_1", "expected value on success", "log OR raise", "async?"),
-		("func_path_2", "func_name_2", "expected value on success", "log OR raise", "async?")
-	]
-}
 
 def _defer(all_params, reactorDetails):
 	# PART-1: create a copy (instantiate) of the function
 	func_path = reactorDetails.func_path
 	func_name = reactorDetails.func_name
 	mod_path = importlib.import_module(func_path)
-	ismodule = assert inspect.ismodule(mod_path)
-	if not ismodule:
+	if not inspect.ismodule(mod_path):
 		raise ConfigError(f"{func_path} is not a module when imported")
 	func = getattr(mod_path, func_name)
 
@@ -149,7 +151,7 @@ def _defer(all_params, reactorDetails):
 		if reactorDetails.onerror:  pass
 		else:                       raise e
 	if runtimeAns == reactorDetails.expectedAns:
-		# inform pop
+		pass # inform pop
 	else:
 		errMsg = f"{func.__name__} didn't return expected value"
 		if reactorDetails.onerror:  print(errMsg)
@@ -169,7 +171,6 @@ def defer(params, reactors):
 
 def push(message, sender):
 	"""
-	x -- implicitly knows about sender (because it violates the defn of pure functional...)
 	assigns a message_id
 	raises some alert, so everyone becomes concious
 	now the functions which care about message m from sender s
@@ -177,22 +178,47 @@ def push(message, sender):
 	  failure is logged unless explicitly programmed to halt (using know_that)
 	  all successes are checked against know_that's own list of reactors
 	  any unexpected success raises programmingErr
-	# ans.stimulus()
+	# ANS.stimulus()
 	"""
 	message_id = str(uuid.uuid4())
-	jobs.append({message_id: message})
+	with documentDB(JOB_LIST) as jobs:
+		jobs.append({message_id: message})
 	wake_everyone() # HAHA
-	reactor_list = physics_rules[sender]
+	with documentDB(PHYSICS_RULES) as physics_rules:
+		reactor_list = physics_rules[sender]
 	defer(message, reactor_list)
 	return
 
+def jobs_tracker():
+	""" has the responsibility of calling pop()
+	necessitates class-like desin
+	to imple,emtn in future when async is possible
+	"""
+	return NotImplemented
+
 def pop(message_id):
 	""" when all subscribers have reported success """
-	return
+	return NotImplemented
 
-def _know_that(sender, reactor_list):
-	""" has the responsibility of calling pop()
-	ans.subscribe(speaker)  # does this go into setup.py
-	ans.set(reaction, stimulant)    # one stimulant can have many reactions
+def define_rules(sender, reactor_list):
+	""" binds reactions to a sender and stores that data in a json file
+	ideal scenario-- QUEUE.subscribe(speaker)  # called by anyone anywhere
+	current scenario-- ANS.set(reaction, stimulant)	# done only at setup time
+	NOTE: one stimulant can have many reactions
 	"""
+	def cautious_writer(dicn, key, list_item):
+		""" exploits the benefits of call-by-sharing """
+		try:
+			_ = dicn[key]
+		except KeyError:
+			dicn[key] = list()
+		finally:
+			dicn[key].append(list_item)
+		return
+	with documentDB(PHYSICS_RULES) as physics_rules:
+		for reactorDetails in reactor_list:
+			cautious_writer(physics_rules, sender, reactorDetails)
+		# just_add_water = functools.partial(cautious_writer, physics_rules,\
+		# sender)
+		# list(  map(just_add_water, reactor_list)  )
 	return

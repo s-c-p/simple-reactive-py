@@ -5,5 +5,8 @@ class A:
         return
 
     def func(self):
-	"""call this func from .."""
+        """call this func from .."""
         return self.x
+
+def func():
+    return "something"
