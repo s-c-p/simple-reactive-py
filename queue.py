@@ -1,10 +1,9 @@
-# TODO: type annotations
-
 import os
 import uuid
 import json
 import inspect
 import importlib
+import itertools
 from contextlib import contextmanager
 from typing import  Tuple, Optional, List, NewType, Generator
 
@@ -98,16 +97,8 @@ def documentDB(file_name: str) -> Generator:
 		json.dump(con, fp, cls=RuleEncoder)
 	return "success"
 
-def _defer(all_params: dict, reactorDetails: PhysicsRule) -> list:
-	# PART-1: create a copy (instantiate) of the function
-	func_path = reactorDetails.func_path
-	func_name = reactorDetails.func_name
-	mod_path = importlib.import_module(func_path)
-	if not inspect.ismodule(mod_path):
-		raise ConfigError(f"{func_path} is not a module when imported")
-	func = getattr(mod_path, func_name)
-
-	# STEP-2: get argument-related details of the function
+def _defer(all_params: dict, func: object, onerror: str, expectedAns) -> str:
+	# STEP-1: get argument-related details of the function
 	call_specs = inspect.getfullargspec(func)
 	# TRY: >>> def f(x, y=1, z=2, *args, **kwargs): pass
 	# FullArgSpec(args=['x', 'y', 'z'], varargs='args', varkw='kwargs',
@@ -118,7 +109,9 @@ def _defer(all_params: dict, reactorDetails: PhysicsRule) -> list:
 	# TODO: dev-stage-2 >> support for varargs added (for functions like
 	#   math('product', *args))
 
-	# STEP-3: filter out necessary details from all_params to get func_params
+	# STEP-2: filter out necessary details from all_params to get func_params
+	# why filter? cuz we gonna need it in the eval-thingy, its string black
+	# magic
 	req_args = call_specs.args
 	# NOTE: req_args is in the calling order that func naturally expects
 	if call_specs.defaults:
@@ -141,24 +134,101 @@ def _defer(all_params: dict, reactorDetails: PhysicsRule) -> list:
 				{all_params}")
 		func_params[anArg] = value
 
-	# STEP-4: and now, finally, we call the function
+	# STEP-3: and now, finally, we call the function
 	the_args = ", ".join([f"func_params['{anArg}']" for anArg in req_args])
 	# NOTE: it's not smart to ". ".join(corresponding values) because then we
 	#   will have to take care about stringifying int and class names properly
-	#   SO we insert values at eval-runtime only by doing dict_name[key] as done
-	#   above
+	#   SO we insert values at eval-runtime only by doing dict_name[key] as 
+	#   done above. Also, the `'` before and after {anArg} are crucial for
+	#   eval to work as expected
 	try:
 		runtimeAns = eval("{}({})".format("func", the_args))
 	except Exception as e:
-		if reactorDetails.onerror == "ignore":  pass
-		else:                       			raise e
-	if runtimeAns == reactorDetails.expectedAns:
-		pass # inform pop
+		if onerror == "ignore": pass
+		else:          			raise e
+	if runtimeAns == expectedAns:
+		# inform pop
+		pass
 	else:
 		errMsg = f"{func.__name__} didn't return expected value"
-		if reactorDetails.onerror == "ignore":  print(errMsg)
-		else:                       			raise RuntimeError(errMsg)
-	return req_args
+		if onerror == "ignore": print(errMsg)
+		else:          			raise RuntimeError(errMsg)
+	return "success"
+
+def detectNameCollision(reactors: List[PhysicsRule]) -> None:
+	""" designed to be ruthless on functions, the primary purpose of this
+	function is to make sure no 2 functions have the same argument name,
+	because such a case would create ambiguity, as in, that commonArg is
+	targeted to which func exactly
+	As a part of its operations, it naturally needs to revive the functions
+	and SO if all goes well (i.e. no collisions detected) then instead of
+	having another function rebuild live versions of these functions we
+	return them at the end; remember return happens IFF no NameCollisions were
+	found
+	"""
+	def _revive_func(reactorDetails: PhysicsRule):
+		""" convert reactorDetails to a live function and return the live 
+		function (since functions are first class citizens in python and can
+		be passed around like objects) along with details 'onerror' &
+		'expectedAns'
+		"""
+		func_path = reactorDetails.func_path
+		func_name = reactorDetails.func_name
+		mod_path = importlib.import_module(func_path)
+		if not inspect.ismodule(mod_path):
+			raise ConfigError(f"{func_path} is not a module when imported")
+		func = getattr(mod_path, func_name)
+		onerror = reactorDetails.onerror
+		expectedAns = reactorDetails.expectedAns
+		return func, onerror, expectedAns
+	# ------------------------------------------------------------------------
+	# NOTE: name collision are detected at runtime not at compile time (i.e.
+	# when # making physics.json) because it is possible for two functions to
+	# have (partially)-identical argument names, in real life the 2 might not
+	# be called at the same time (i.e. be in the same reactor_list for an
+	# arbitary stimulant), and if they do get called THEN AND ONLY THEN the
+	# programmer sees an error otherwise no need to make his/her life extra
+	# difficult by forcing 'em to come up with unique var names THROUGHOUT
+	# the project 
+	# ------------------------------------------------------------------------
+	# why not just provide pre-packed info to queue.push, like
+	# {"funcName": **kwds, "funcName2": **kwds} it defeats the design
+	# philosopy that stimulant (one who calls queue.push, aka the popular
+	# girl/guy that everyone listens to) shouldn't have to worry about knowing
+	# its followers, it just provides all info it can (like giving it all in
+	# a block buster performance), fans (reactors) pick what details they want
+	# form `all_params`
+	live_funcs = list()
+	all_all_args = list()
+	for aReactor in reactors:
+		func, onerror, expectedAns = _revive_func(aReactor)
+		live_funcs.append({
+			"func": func,
+			"onerror": onerror,
+			"expectedAns": expectedAns
+		})
+		req_args = inspect.getfullargspec(func).args		# NOTE: bang!!!
+		all_all_args.append(req_args)
+		# NOTE: although live_funcs and all_all_args are 2 seperate lists but
+		# because they are built parallely, any (legal) index `i` of live_funcs
+		# has its corresponding req_args at all_all_args[i] only, this fact
+		# is used below for deriving names of functions when a name collision
+		# occours
+	for a_combo in itertools.combinations(all_all_args, 2):
+		list1, list2 = a_combo
+		set1, set2 = set(list1), set(list2)
+		ans = set1.intersection(set2)
+		if ans:
+			# i.e. set is not empty
+			commonArg = ans.pop()
+			# derive the the function names to give an informative error
+			# message
+			i1 = all_all_args.index(list1)
+			i2 = all_all_args.index(list2)
+			func_1_name = live_funcs[i1]["func"].__name__
+			func_2_name = live_funcs[i2]["func"].__name__
+			raise RuntimeError(f"NameCollision detected: 2 functions `{func_1_name}` and `{func_2_name}` have `{commonArg}` as a common argument name, this creates ambiguity (`{commonArg}` is target to whom exactly) at runtime. Please refactor the code to remove such ambiguity")
+	return live_funcs
 
 def defer(all_params: dict, reactors: List[PhysicsRule]) -> str:
 	""" async await
@@ -167,18 +237,14 @@ def defer(all_params: dict, reactors: List[PhysicsRule]) -> str:
 	https://medium.freecodecamp.org/a-guide-to-asynchronous-programming-in-python-with-asyncio-232e2afa44f6
 	https://github.com/ask/flask-celery/
 	"""
-	total_length = int()
-	all_all_args = list()
-	for aReactor in reactors:
-		req_args = _defer(all_params, aReactor)
-		all_all_args.append(req_args)
-	if len(set(all_all_args)) == total_length:
-		# i.e. no duplicate arg names i.e. no 
-		# name colliosion of args of different functions
-		pass
-	else:
-		raise ConfigError("1+ functions share a common argument name, \
-		name colliosion, can't work")
+	live_funcs = detectNameCollision(reactors)
+	for a_live_func in live_funcs:
+		_defer(
+			all_params,
+			a_live_func["func"],
+			a_live_func["onerror"],
+			a_live_func["expectedAns"]
+		)
 	return "success"
 
 def push(message: dict, sender: str) -> str:
@@ -204,17 +270,6 @@ def push(message: dict, sender: str) -> str:
 	defer(message, reactor_list)
 	return "success"
 
-def jobs_tracker():
-	""" has the responsibility of calling pop()
-	necessitates class-like desin
-	to imple,emtn in future when async is possible
-	"""
-	return NotImplemented
-
-def pop(message_id: str):
-	""" when all subscribers have reported success """
-	return NotImplemented
-
 def define_rules(sender: str, reactor_list: List[PhysicsRule]) -> str:
 	""" binds reactions to a sender and stores that data in a json file
 	ideal scenario-- QUEUE.subscribe(speaker)  # called by anyone anywhere
@@ -238,3 +293,14 @@ def define_rules(sender: str, reactor_list: List[PhysicsRule]) -> str:
 		# sender)
 		# list(  map(just_add_water, reactor_list)  )
 	return "success"
+
+def jobs_tracker():
+	""" has the responsibility of calling pop()
+	necessitates class-like design
+	to imple,emtn in future when async is possible
+	"""
+	return NotImplemented
+
+def pop(message_id: str):
+	""" when all subscribers have reported success """
+	return NotImplemented

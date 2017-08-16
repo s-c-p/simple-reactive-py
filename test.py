@@ -32,6 +32,8 @@ import queue
 #     ])
 
 def setup():
+	with open("jobs.list", mode="wt") as fp:	fp.write("[]")
+	with open("physics.json", mode="wt") as fp:	fp.write("{}")
 	queue.define_rules("flow_test",
 		[ queue.PhysicsRule("import_test.modA", "f1", None, "ignore")
 		, queue.PhysicsRule("import_test.modA", "f2", None, "ignore")
@@ -71,6 +73,9 @@ def pump_test():
 	# , "useless": lambda x: x >>> TypeError: Object of type 'function' is not JSON serializable OCCOURS when contextmgr tries to serialize joblist to save on disk
 	}
 	queue.push(all_params, "pump_test")
+	return
+
+def name_collision_test():
 	return
 
 def main():
