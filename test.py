@@ -24,7 +24,7 @@ I am always here
 """
 
 import queue
-import pytest
+# import pytest
 
 # queue.define_rules("sender_name",
 #     [ queue.PhysicsRule(1, 2, 3, 4)
