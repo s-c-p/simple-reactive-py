@@ -80,8 +80,7 @@ def name_collision_test():
 
 def main():
 	setup()
-	flow_test()
-	input(" flow_test done, commencing pump_test ".center(79, "-"))
+	flow_test()	
 	pump_test()
 	return
 
