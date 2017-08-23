@@ -38,15 +38,18 @@ def setup():
 		[ queue.PhysicsRule("import_test.modA", "f1", None, "ignore")
 		, queue.PhysicsRule("import_test.modA", "f2", None, "ignore")
 		, queue.PhysicsRule("import_test.modA", "f6", None, "ignore")
-		])
+		]
+	)
 	queue.define_rules("flow_test",
 		[ queue.PhysicsRule("import_test.deeper.modB", "f4", None, "ignore")
 		, queue.PhysicsRule("import_test.deeper.modB", "f5", None, "ignore")
-		])
+		]
+	)
 	queue.define_rules("pump_test",
 		[ queue.PhysicsRule("import_test.modA", "func_w_defaults_partially_overRidden", None, "ignore")
 		, queue.PhysicsRule("import_test.deeper.modB", "func_w_defaults", None, "ignore")
-		])	
+		]
+	)
 	return
 
 def flow_test():
@@ -86,3 +89,4 @@ def main():
 
 if __name__ == '__main__':
 	main()
+
